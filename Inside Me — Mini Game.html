@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inside Me — Mini Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#050a16; --panel:rgba(10,20,42,.82); --line:rgba(61,232,255,.35);
+    --cy:#3de8ff; --red:#ff4064; --amb:#ffb84c; --grn:#5af5aa; --vio:#9673ff;
+    --white:#ecf6ff; --dim:#8098bc;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--white);font-family:Inter,system-ui,sans-serif;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#0d1736 0%,#050a16 70%)}
+  #stage{position:relative;width:1280px;height:720px;transform-origin:center center;flex:none}
+  canvas{position:absolute;inset:0;width:1280px;height:720px;display:block;border-radius:14px}
+  .hud{position:absolute;left:0;right:0;top:0;padding:16px 22px;display:flex;gap:14px;align-items:flex-start;pointer-events:none}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;backdrop-filter:blur(6px)}
+  .lbl{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
+  .val{font-size:20px;font-weight:700;margin-top:2px}
+  #loc .val{color:var(--cy)}
+  .bar{width:150px;height:9px;border-radius:6px;background:rgba(128,152,188,.25);margin-top:8px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--grn);border-radius:6px;transition:width .25s,background .25s}
+  #vitals{margin-left:auto;display:flex;gap:18px}
+  #vitals .val{font-size:26px;font-weight:800}
+  #hr{color:var(--grn)} #spo2{color:var(--amb)}
+  .beat{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-left:6px;vertical-align:middle;animation:beat .9s infinite}
+  @keyframes beat{0%,100%{transform:scale(.7);opacity:.6}12%{transform:scale(1.3);opacity:1}}
+  #mentor{position:absolute;left:22px;bottom:22px;max-width:560px;display:flex;gap:12px;align-items:flex-start;pointer-events:none;opacity:0;transform:translateY(10px);transition:all .35s}
+  #mentor.show{opacity:1;transform:none}
+  #mentor.right{left:auto;right:22px;bottom:70px}
+  #mentor .chip{border-color:rgba(150,115,255,.6)}
+  #mentor .lbl{color:var(--vio)}
+  #mentorText{font-size:16px;line-height:1.45;margin-top:4px}
+  .orb{flex:none;width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#d7c8ff,#9673ff 45%,#3b2a8a);box-shadow:0 0 22px rgba(150,115,255,.8);margin-top:4px}
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(3,7,16,.6);backdrop-filter:blur(3px);border-radius:14px}
+  .overlay.show{display:flex}
+  .card{background:linear-gradient(180deg,rgba(14,26,54,.96),rgba(8,15,32,.96));border:1px solid var(--line);border-radius:20px;padding:36px 42px;width:820px;max-width:92%;box-shadow:0 0 60px rgba(61,232,255,.12)}
+  .kick{font-size:13px;font-weight:700;letter-spacing:.24em;color:var(--cy);text-transform:uppercase;display:flex;align-items:center;gap:12px}
+  .kick:before{content:"";width:28px;height:2px;background:currentColor}
+  h1{font-size:76px;font-weight:900;letter-spacing:.06em;line-height:1;margin:14px 0 8px;text-shadow:0 0 30px rgba(255,255,255,.35)}
+  h2{font-size:44px;font-weight:800;margin:10px 0 6px}
+  .sub{font-size:22px;font-weight:400;color:var(--white);opacity:.9}
+  p{font-size:17px;line-height:1.55;color:#c9d7ec}
+  .muted{color:var(--dim)}
+  .btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+  button{font:inherit;cursor:pointer;border-radius:12px;border:1px solid var(--cy);background:rgba(61,232,255,.12);color:var(--white);font-weight:700;font-size:17px;padding:14px 24px;transition:all .15s}
+  button:hover{background:rgba(61,232,255,.28);box-shadow:0 0 22px rgba(61,232,255,.35)}
+  button.primary{background:var(--cy);color:#04121c}
+  button.primary:hover{background:#7ff0ff}
+  button.ghost{border-color:rgba(128,152,188,.5);background:transparent}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+  .opts button{text-align:left;padding:16px 18px;font-weight:600;border-color:rgba(128,152,188,.45);background:rgba(128,152,188,.08)}
+  .opts button:hover{border-color:var(--cy)}
+  .opts button.wrong{border-color:var(--red);background:rgba(255,64,100,.15);color:#ffc2cf}
+  .opts button.right{border-color:var(--grn);background:rgba(90,245,170,.18)}
+  .opts button small{display:block;font-weight:400;color:var(--dim);font-size:14px;margin-top:4px}
+  .clues{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .clue{font-size:14px;font-weight:600;border-radius:999px;padding:7px 14px;border:1px solid rgba(255,184,76,.55);background:rgba(255,184,76,.1);color:#ffe3b8}
+  .clue.found{border-color:rgba(90,245,170,.6);background:rgba(90,245,170,.1);color:#c8ffe4}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;margin-top:18px}
+  .stat{display:flex;justify-content:space-between;border-bottom:1px solid rgba(128,152,188,.2);padding:8px 0;font-size:17px}
+  .stat b{color:var(--cy)}
+  .grade{font-size:110px;font-weight:900;line-height:1;color:var(--grn);text-shadow:0 0 40px rgba(90,245,170,.6)}
+  .ctrl{display:flex;gap:22px;margin-top:20px;font-size:15px;color:var(--dim)}
+  kbd{font-family:inherit;font-size:13px;font-weight:700;border:1px solid rgba(128,152,188,.5);border-bottom-width:3px;border-radius:6px;padding:2px 7px;color:var(--white)}
+  ul.lp{margin:14px 0 0 20px;color:#c9d7ec;font-size:16px;line-height:1.7}
+  #mute{position:absolute;right:22px;bottom:22px;pointer-events:auto;padding:8px 12px;font-size:14px;border-color:rgba(128,152,188,.5);background:var(--panel)}
+  .fine{font-size:12px;color:var(--dim);margin-top:18px}
+  #toast{position:absolute;left:50%;top:94px;transform:translateX(-50%);font-weight:800;font-size:22px;letter-spacing:.12em;text-transform:uppercase;opacity:0;transition:opacity .3s;pointer-events:none;text-shadow:0 0 18px currentColor}
+</style>
+</head>
+<body>
+<div id="wrap">
+<div id="stage">
+  <canvas id="c" width="1280" height="720"></canvas>
+
+  <div class="hud" id="hud" style="display:none">
+    <div class="chip" id="loc"><div class="lbl">Location</div><div class="val" id="locVal">Left femoral vein</div></div>
+    <div class="chip"><div class="lbl">Hull integrity</div><div class="bar"><i id="hull" style="width:100%"></i></div></div>
+    <div class="chip"><div class="lbl">Score</div><div class="val" id="score">0</div></div>
+    <div class="chip"><div class="lbl">Clues</div><div class="val" id="clueCount">3</div></div>
+    <div id="vitals" class="chip">
+      <div><div class="lbl">HR <span class="beat" id="beat"></span></div><div class="val" id="hr">112</div></div>
+      <div><div class="lbl">SpO2</div><div class="val" id="spo2">89%</div></div>
+    </div>
+  </div>
+  <div id="toast"></div>
+
+  <div id="mentor"><div class="orb"></div><div class="chip"><div class="lbl">AI Mentor</div><div id="mentorText"></div></div></div>
+  <button id="mute" style="display:none">Sound: on</button>
+
+  <!-- TITLE -->
+  <div class="overlay show" id="ovTitle">
+    <div class="card" style="text-align:center">
+      <div class="kick" style="justify-content:center">A serious game for medical education · mini version</div>
+      <h1>INSIDE ME</h1>
+      <div class="sub">Journey Through the Human Body</div>
+      <p style="margin-top:18px">Pilot a nanoship through a patient's bloodstream, find what's wrong, and save the day.</p>
+      <div class="ctrl" style="justify-content:center">
+        <span><kbd>↑</kbd> <kbd>↓</kbd> or mouse / touch to steer</span>
+        <span>Hold <kbd>Space</kbd> or click to scan</span>
+      </div>
+      <div class="btns" style="justify-content:center"><button class="primary" id="btnStart">Start Case 07</button></div>
+      <div class="fine">Educational prototype. Medicine is simplified — not clinical guidance.</div>
+    </div>
+  </div>
+
+  <!-- BRIEFING -->
+  <div class="overlay" id="ovBrief">
+    <div class="card">
+      <div class="kick" style="color:var(--amb)">Case 07 · Patient briefing</div>
+      <h2>“I can’t catch my breath.”</h2>
+      <p>A 54-year-old patient had knee surgery three days ago and has spent most of that time in bed. Today they suddenly became short of breath, with chest pain when breathing in.</p>
+      <div class="clues" id="briefClues"></div>
+      <p style="margin-top:20px"><b style="color:var(--cy)">Your mission:</b> you'll be injected into a vein in the patient's left leg. Follow the flow of blood to the lungs, avoid immune cells, collect <span style="color:var(--cy)">data fragments</span>, and look out for evidence along the way.</p>
+      <div class="btns"><button class="primary" id="btnLaunch">Shrink &amp; launch</button></div>
+    </div>
+  </div>
+
+  <!-- FORK FEEDBACK -->
+  <div class="overlay" id="ovFork">
+    <div class="card">
+      <div class="kick" id="forkKick">Route check</div>
+      <h2 id="forkTitle"></h2>
+      <p id="forkText"></p>
+      <div class="btns"><button class="primary" id="btnForkGo">Continue</button></div>
+    </div>
+  </div>
+
+  <!-- DIAGNOSIS -->
+  <div class="overlay" id="ovDx">
+    <div class="card">
+      <div class="kick" style="color:var(--red)">Diagnose</div>
+      <h2>What's causing the breathlessness?</h2>
+      <p class="muted">Your evidence board:</p>
+      <div class="clues" id="dxClues"></div>
+      <div class="opts" id="dxOpts"></div>
+    </div>
+  </div>
+
+  <!-- TREATMENT -->
+  <div class="overlay" id="ovTx">
+    <div class="card">
+      <div class="kick" style="color:var(--grn)">Treat</div>
+      <h2>Choose the first treatment</h2>
+      <p class="muted">Diagnosis: pulmonary embolism — a clot from the leg vein is blocking an artery in the right lung.</p>
+      <div class="opts" id="txOpts"></div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="overlay" id="ovEnd">
+    <div class="card">
+      <div style="display:flex;gap:34px;align-items:center">
+        <div style="text-align:center"><div class="lbl">Grade</div><div class="grade" id="grade">A</div></div>
+        <div style="flex:1">
+          <div class="kick" style="color:var(--grn)" id="endKick">Case closed</div>
+          <h2 id="endTitle">Patient stabilized</h2>
+          <p id="endText">Oxygen is rising and the heart rate is settling.</p>
+        </div>
+      </div>
+      <div class="grid2" id="stats"></div>
+      <div class="lbl" style="margin-top:22px">What you learned</div>
+      <ul class="lp">
+        <li>Long periods without moving after surgery can cause a clot in a leg vein (DVT).</li>
+        <li>Venous blood flows leg → vena cava → right atrium → right ventricle → pulmonary artery → lungs.</li>
+        <li>A clot that lodges in the lung's arteries is a pulmonary embolism: airways are clear, but blood flow stops, so oxygen falls.</li>
+      </ul>
+      <div class="btns"><button class="primary" id="btnAgain">Play again</button></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const W = 1280, H = 720;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+const stage = $('stage');
+
+function fit(){
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  stage.style.transform = `scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+
+// ---------------- audio ----------------
+let ac = null, muted = false;
+function audioInit(){ try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume && ac.resume(); } catch(e){ ac = null; } }
+function tone(freq, dur, type='sine', vol=0.15, slide=0){
+  if (!ac || muted) return;
+  try {
+    const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+  } catch(e){}
+}
+const sfx = {
+  pick(){ tone(880, .12, 'triangle', .12, 600); },
+  evidence(){ tone(523, .15, 'triangle', .14); setTimeout(()=>tone(784, .25, 'triangle', .14), 120); },
+  hit(){ tone(140, .25, 'sawtooth', .12, -80); },
+  beat(){ tone(60, .18, 'sine', .35, -25); setTimeout(()=>tone(55, .15, 'sine', .22, -20), 220); },
+  good(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,.25,'triangle',.12), i*90)); },
+  bad(){ tone(220, .3, 'square', .07, -90); },
+  scan(){ tone(1200, .05, 'square', .03); }
+};
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = 'Sound: ' + (muted ? 'off' : 'on'); };
+
+// ---------------- input ----------------
+const keys = {};
+let pointer = { x: 640, y: 360, active: false, down: false };
+addEventListener('keydown', e => { keys[e.key] = true; if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault(); });
+addEventListener('keyup', e => { keys[e.key] = false; });
+function toLocal(e){
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
+}
+cv.addEventListener('pointermove', e => { const p = toLocal(e); pointer.x = p.x; pointer.y = p.y; pointer.active = true; });
+cv.addEventListener('pointerdown', e => { const p = toLocal(e); pointer.x = p.x; pointer.y = p.y; pointer.active = true; pointer.down = true; try{ cv.setPointerCapture(e.pointerId); }catch(_){} });
+addEventListener('pointerup', () => { pointer.down = false; });
+cv.style.touchAction = 'none';
+
+// ---------------- helpers ----------------
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const rnd = (a, b) => a + Math.random() * (b - a);
+let mentorTimer = 0;
+function mentor(msg, secs = 5){
+  $('mentorText').innerHTML = msg; $('mentor').classList.add('show'); mentorTimer = secs;
+}
+function toast(msg, color){
+  const t = $('toast'); t.textContent = msg; t.style.color = color; t.style.opacity = 1;
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.opacity = 0, 1400);
+}
+function show(id){ document.querySelectorAll('.overlay').forEach(o => o.classList.toggle('show', o.id === id)); }
+function hideAll(){ document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show')); }
+
+// ---------------- game state ----------------
+const BRIEF_CLUES = ['Knee surgery 3 days ago', 'Bed rest, little movement', 'SpO2 89% (low)', 'Heart rate 112 (fast)'];
+const LEGS = [
+  { name: 'Left femoral vein', len: 2900, wall: [120, 30, 70], ring: [255, 70, 120], hw: 165, wbc: 2.4, pulse: 0, turb: 0 },
+  { name: 'Inferior vena cava', len: 2900, wall: [130, 30, 80], ring: [255, 90, 140], hw: 200, wbc: 1.5, pulse: 0, turb: 0 },
+  { name: 'Right heart', len: 2700, wall: [160, 30, 60], ring: [255, 60, 90], hw: 210, wbc: 1.9, pulse: 55, turb: 70 },
+];
+const FORKS = [
+  { right: 'Inferior vena cava → heart', wrong: 'Great saphenous vein → foot',
+    okText: 'Correct. Veins carry blood <b>back toward the heart</b>. From the leg, blood flows up through the iliac vein into the inferior vena cava.',
+    noText: 'Not quite — heading toward the foot goes <b>against the flow</b>. Veins return blood to the heart, so the route is up into the inferior vena cava. Rerouting…' },
+  { right: 'Right atrium → right ventricle', wrong: 'Through the wall → left atrium',
+    okText: 'Correct. Blood from the vena cava fills the <b>right atrium</b>, then passes through the tricuspid valve into the <b>right ventricle</b>.',
+    noText: 'Ouch — the wall between the atria (the septum) is normally sealed in adults. Blood goes from the right atrium to the <b>right ventricle</b>. Rerouting…' },
+  { right: 'Pulmonary artery → lungs', wrong: 'Aorta → rest of body',
+    okText: 'Correct. The right ventricle pumps blood into the <b>pulmonary artery</b>, toward the lungs to pick up oxygen.',
+    noText: 'Not this time — the aorta leaves the <b>left</b> ventricle. The right ventricle pumps into the <b>pulmonary artery</b>. Rerouting…' },
+];
+let S;
+function reset(){
+  S = {
+    phase: 'title', t: 0, score: 0, hull: 100, leg: 0, cam: 0, speed: 270,
+    ship: { y: 360, vy: 0, inv: 0 }, ents: [], parts: [], spawnT: 0,
+    wrongTurns: 0, frags: 0, evidence: false, evidenceSpawned: false,
+    forkSide: FORKS.map(() => Math.random() < 0.5), // true: correct on top
+    forkDone: false, scans: 0, zones: [], clotFound: false, dxTries: 0, txTries: 0,
+    start: 0, beatT: 0, hr: 112, spo2: 89, shake: 0, flash: 0, ending: null, endT: 0,
+  };
+  updHud();
+}
+function updHud(){
+  $('score').textContent = S.score;
+  $('hull').style.width = S.hull + '%';
+  $('hull').style.background = S.hull > 60 ? 'var(--grn)' : S.hull > 30 ? 'var(--amb)' : 'var(--red)';
+  $('clueCount').textContent = BRIEF_CLUES.length + (S.evidence ? 1 : 0) + (S.clotFound ? 1 : 0);
+  $('hr').textContent = Math.round(S.hr);
+  $('spo2').textContent = Math.round(S.spo2) + '%';
+  $('beat').style.animationDuration = (60 / S.hr) + 's';
+}
+
+// ---------------- vessel geometry ----------------
+function legOf(){ return LEGS[Math.min(S.leg, LEGS.length - 1)]; }
+function forkX(){ return legOf().len; }
+function vessel(wx){
+  const L = legOf(), fx = forkX();
+  let yc = 360 + 85 * Math.sin(wx * 0.0042 + S.leg * 2) + 38 * Math.sin(wx * 0.011 + S.leg);
+  let hw = L.hw + 35 * Math.sin(wx * 0.0068 + S.leg * 3);
+  if (L.pulse) { const b = beatPhase(); hw -= L.pulse * b; }
+  const f = clamp((wx - (fx - 950)) / 650, 0, 1);
+  yc = lerp(yc, 360, f); hw = lerp(hw, 290, f);
+  return { yc, hw };
+}
+function beatPhase(){ // 0..1 squeeze following heartbeat
+  const p = (S.t * S.hr / 60) % 1;
+  return p < 0.12 ? Math.sin(p / 0.12 * Math.PI) : (p > 0.24 && p < 0.34 ? 0.5 * Math.sin((p - 0.24) / 0.1 * Math.PI) : 0);
+}
+function divider(wx){ // half-height of the dividing wedge at world x
+  const d = wx - forkX();
+  return d <= 0 ? -1 : Math.min(130, d * 0.45);
+}
+
+// ---------------- spawning ----------------
+function spawn(dt){
+  const L = legOf(), ahead = S.cam + W + 60;
+  if (ahead > forkX() - 700) return;
+  S.spawnT -= dt;
+  // red blood cells (harmless, decorative)
+  if (Math.random() < dt * 9) {
+    const v = vessel(ahead);
+    S.ents.push({ k: 'rbc', x: ahead, y: v.yc + rnd(-v.hw + 25, v.hw - 25), r: rnd(12, 20), vx: rnd(60, 160), a: rnd(0, 6.28), z: Math.random() });
+  }
+  if (S.spawnT <= 0) {
+    S.spawnT = rnd(0.5, 1.0);
+    const v = vessel(ahead), y = v.yc + rnd(-v.hw + 40, v.hw - 40);
+    const r = Math.random();
+    if (r < 0.32 * L.wbc) S.ents.push({ k: 'wbc', x: ahead, y, r: rnd(26, 34), vx: rnd(-40, 30), a: rnd(0, 6.28) });
+    else if (r < 0.75) S.ents.push({ k: 'frag', x: ahead, y, r: 14, a: 0 });
+  }
+  if (S.leg === 0 && !S.evidenceSpawned && S.cam > 1100) {
+    S.evidenceSpawned = true;
+    const wx = S.cam + W + 40, v = vessel(wx);
+    S.ents.push({ k: 'evid', x: wx, y: v.yc + v.hw * 0.25, r: 30, a: 0 });
+    mentor('Scanner ping ahead — something amber is stuck to the vein wall. <b>Fly through it</b> to collect evidence.', 5);
+  }
+}
+
+// ---------------- navigation update ----------------
+function updNav(dt){
+  const L = legOf(), sh = S.ship;
+  S.cam += S.speed * dt;
+  const shipWX = S.cam + 260;
+  // control
+  let ax = 0;
+  if (keys.ArrowUp || keys.w || keys.W) ax -= 1;
+  if (keys.ArrowDown || keys.s || keys.S) ax += 1;
+  if (ax) { sh.vy += ax * 2600 * dt; pointer.active = false; }
+  else if (pointer.active) { sh.vy += (pointer.y - sh.y) * 14 * dt - sh.vy * 0; }
+  if (L.turb) sh.vy += Math.sin(S.t * 3.1) * L.turb * dt * 4;
+  sh.vy *= Math.pow(0.0025, dt);
+  sh.vy = clamp(sh.vy, -650, 650);
+  sh.y += sh.vy * dt;
+  sh.inv = Math.max(0, sh.inv - dt);
+
+  // wall collision
+  const v = vessel(shipWX);
+  const lim = v.hw - 20;
+  if (sh.y < v.yc - lim) { sh.y = v.yc - lim; sh.vy = Math.abs(sh.vy) * 0.4 + 120; damage(6, 'wall'); }
+  if (sh.y > v.yc + lim) { sh.y = v.yc + lim; sh.vy = -Math.abs(sh.vy) * 0.4 - 120; damage(6, 'wall'); }
+  // divider collision (fork)
+  const dh = divider(shipWX);
+  if (dh > 0 && Math.abs(sh.y - 360) < dh + 16) {
+    sh.y = sh.y < 360 ? 360 - dh - 16 : 360 + dh + 16;
+  }
+
+  spawn(dt);
+  for (const e of S.ents) {
+    if (e.k === 'rbc') e.x += e.vx * dt;
+    if (e.k === 'wbc') { e.x += e.vx * dt; const sy = sh.y - e.y; if (Math.abs(e.x - shipWX) < 420) e.y += clamp(sy, -1, 1) * 55 * dt; }
+    e.a += dt;
+    const dx = e.x - shipWX, dy = e.y - sh.y, dd = Math.hypot(dx, dy);
+    if (e.k === 'wbc' && dd < e.r + 16 && !e.dead) { e.dead = true; damage(14, 'wbc'); burst(e.x - S.cam, e.y, [235, 240, 255], 18); }
+    if (e.k === 'frag' && dd < e.r + 22 && !e.dead) { e.dead = true; S.frags++; S.score += 25; sfx.pick(); burst(e.x - S.cam, e.y, [61, 232, 255], 12); updHud(); }
+    if (e.k === 'evid' && dd < e.r + 26 && !e.dead) {
+      e.dead = true; S.evidence = true; S.score += 150; sfx.evidence(); burst(e.x - S.cam, e.y, [255, 184, 76], 30);
+      toast('Evidence found: clot in leg vein', '#ffb84c');
+      mentor('A blood clot stuck in a deep leg vein — a <b>DVT</b>. Bed rest after surgery makes these more likely. If a piece breaks off… where would it travel?', 7);
+      updHud();
+    }
+  }
+  S.ents = S.ents.filter(e => !e.dead && e.x > S.cam - 100);
+
+  // fork decision
+  if (!S.forkDone && shipWX > forkX() + 140) {
+    S.forkDone = true;
+    const top = sh.y < 360, f = FORKS[S.leg], correctTop = S.forkSide[S.leg];
+    const ok = top === correctTop;
+    if (ok) { S.score += 200; sfx.good(); } else { S.wrongTurns++; S.score = Math.max(0, S.score - 50); S.hull = Math.max(5, S.hull - 10); sfx.bad(); }
+    updHud();
+    $('forkKick').textContent = ok ? 'Correct route  +200' : 'Wrong turn  −50';
+    $('forkKick').style.color = ok ? 'var(--grn)' : 'var(--red)';
+    $('forkTitle').textContent = f.right.split(' → ')[0];
+    $('forkTitle').textContent = ok ? f.right : 'You chose: ' + f.wrong;
+    $('forkText').innerHTML = ok ? f.okText : f.noText;
+    S.phase = 'fork'; show('ovFork');
+  }
+}
+function damage(n, src){
+  if (S.ship.inv > 0) return;
+  S.ship.inv = src === 'wall' ? 0.6 : 1.0;
+  S.hull = Math.max(0, S.hull - n); S.shake = 0.35; S.flash = 0.25; sfx.hit(); updHud();
+  if (src === 'wbc' && !damage.told) { damage.told = true; mentor('White blood cells think the nanoship is an invader. <b>Steer around them!</b>', 4); }
+  if (src === 'wall' && !damage.toldW) { damage.toldW = true; mentor('Careful — scraping the vessel wall damages the hull.', 3.5); }
+  if (S.hull <= 0) gameOver();
+}
+function burst(x, y, col, n){
+  for (let i = 0; i < n; i++) { const a = rnd(0, 6.28), s = rnd(60, 260); S.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(.4, .8), max: .8, col, r: rnd(2, 4) }); }
+}
+
+// ---------------- drawing: vessel ----------------
+function drawBg(){
+  const g = ctx.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, 800);
+  g.addColorStop(0, '#120c2a'); g.addColorStop(1, '#04070f');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+function rgba(c, a){ return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+function drawVessel(){
+  const L = legOf();
+  const top = [], bot = [];
+  for (let sx = -20; sx <= W + 20; sx += 14) { const v = vessel(S.cam + sx); top.push([sx, v.yc - v.hw]); bot.push([sx, v.yc + v.hw]); }
+  // tissue outside
+  ctx.fillStyle = rgba(L.wall.map(c => c * 0.35), 1);
+  ctx.fillRect(0, 0, W, H);
+  // lumen
+  ctx.beginPath(); ctx.moveTo(top[0][0], top[0][1]);
+  for (const p of top) ctx.lineTo(p[0], p[1]);
+  for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i][0], bot[i][1]);
+  ctx.closePath();
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#1a0820'); g.addColorStop(0.5, '#2a0d2c'); g.addColorStop(1, '#1a0820');
+  ctx.fillStyle = g; ctx.fill();
+  // flow streaks
+  ctx.save(); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,90,140,0.08)'; ctx.lineWidth = 2;
+  for (let i = 0; i < 26; i++) {
+    const wx = ((i * 137) % 1400) - ((S.cam * 1.6) % 1400);
+    const sx = (wx + 1400) % 1400 - 60, v = vessel(S.cam + sx), yy = v.yc + ((i * 53) % 100 / 100 - 0.5) * v.hw * 1.6;
+    ctx.beginPath(); ctx.moveTo(sx, yy); ctx.lineTo(sx + 90, yy); ctx.stroke();
+  }
+  // rings (vessel texture)
+  for (let k = 0; k < 14; k++) {
+    const sx = ((k * 110 - S.cam) % 1540 + 1540) % 1540 - 120;
+    const v = vessel(S.cam + sx);
+    ctx.strokeStyle = rgba(L.ring, 0.12); ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(sx, v.yc, 18, v.hw, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+  // glowing walls
+  ctx.save(); ctx.shadowColor = rgba(L.ring, 0.9); ctx.shadowBlur = 22; ctx.strokeStyle = rgba(L.ring, 0.85); ctx.lineWidth = 4;
+  for (const arr of [top, bot]) { ctx.beginPath(); arr.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); }
+  ctx.restore();
+  // fork divider + labels
+  const fsx = forkX() - S.cam;
+  if (fsx < W + 400) {
+    ctx.save();
+    ctx.beginPath();
+    let started = false;
+    const pts = [];
+    for (let sx = Math.max(fsx, -20); sx <= W + 20; sx += 10) { const d = divider(S.cam + sx); if (d > 0) pts.push([sx, d]); }
+    if (pts.length) {
+      ctx.moveTo(fsx, 360);
+      for (const p of pts) ctx.lineTo(p[0], 360 - p[1]);
+      for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], 360 + pts[i][1]);
+      ctx.closePath();
+      ctx.fillStyle = rgba(L.wall.map(c => c * 0.35), 1); ctx.fill();
+      ctx.shadowColor = rgba(L.ring, 0.9); ctx.shadowBlur = 20; ctx.strokeStyle = rgba(L.ring, 0.85); ctx.lineWidth = 4; ctx.stroke();
+    }
+    ctx.restore();
+    if (!S.forkDone) {
+      const f = FORKS[S.leg], ct = S.forkSide[S.leg];
+      const topLbl = ct ? f.right : f.wrong, botLbl = ct ? f.wrong : f.right;
+      const lx = clamp(fsx + 60, 560, W - 40), a = clamp((W + 300 - fsx) / 500, 0, 1);
+      ctx.globalAlpha = a;
+      drawSign(lx, 190, '▲  ' + topLbl);
+      drawSign(lx, 530, '▼  ' + botLbl);
+      ctx.font = '700 15px Inter, sans-serif'; ctx.fillStyle = '#8098bc'; ctx.textAlign = 'left';
+      ctx.fillText('CHOOSE A BRANCH — follow the flow of blood', 40, 690);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+function drawSign(x, y, s){
+  ctx.font = '700 22px Inter, sans-serif'; const w = ctx.measureText(s).width + 36;
+  const x0 = Math.min(x, W - w - 30);
+  ctx.fillStyle = 'rgba(8,16,34,0.88)'; ctx.strokeStyle = '#3de8ff'; ctx.lineWidth = 2;
+  roundRect(x0, y - 26, w, 52, 12); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ecf6ff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(s, x0 + 18, y + 1); ctx.textBaseline = 'alphabetic';
+}
+function roundRect(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+function drawEnts(){
+  for (const e of S.ents) {
+    const x = e.x - S.cam, y = e.y;
+    if (e.k === 'rbc') {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(e.a) * 0.6);
+      ctx.fillStyle = `rgba(200,40,70,${0.5 + e.z * 0.4})`; ctx.beginPath(); ctx.ellipse(0, 0, e.r, e.r * 0.75, 0, 0, 6.29); ctx.fill();
+      ctx.fillStyle = 'rgba(110,15,40,0.8)'; ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.45, e.r * 0.3, 0, 0, 6.29); ctx.fill();
+      ctx.restore();
+    } else if (e.k === 'wbc') {
+      ctx.save(); ctx.translate(x, y);
+      ctx.shadowColor = 'rgba(220,230,255,0.8)'; ctx.shadowBlur = 18;
+      ctx.fillStyle = 'rgba(225,232,250,0.9)'; ctx.beginPath();
+      for (let i = 0; i <= 24; i++) { const an = i / 24 * 6.283, rr = e.r * (1 + 0.12 * Math.sin(an * 5 + e.a * 3)); i ? ctx.lineTo(Math.cos(an) * rr, Math.sin(an) * rr) : ctx.moveTo(Math.cos(an) * rr, Math.sin(an) * rr); }
+      ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(130,100,220,0.85)';
+      for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(Math.cos(i * 2.1 + e.a) * e.r * 0.35, Math.sin(i * 2.1 + e.a) * e.r * 0.35, e.r * 0.3, 0, 6.29); ctx.fill(); }
+      ctx.restore();
+    } else if (e.k === 'frag') {
+      ctx.save(); ctx.translate(x, y + Math.sin(e.a * 3) * 4); ctx.rotate(e.a * 2);
+      ctx.shadowColor = '#3de8ff'; ctx.shadowBlur = 20; ctx.fillStyle = '#3de8ff';
+      ctx.beginPath(); ctx.moveTo(0, -e.r); ctx.lineTo(e.r * 0.7, 0); ctx.lineTo(0, e.r); ctx.lineTo(-e.r * 0.7, 0); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    } else if (e.k === 'evid') {
+      ctx.save(); ctx.translate(x, y);
+      const p = 1 + 0.08 * Math.sin(e.a * 6);
+      ctx.shadowColor = '#ffb84c'; ctx.shadowBlur = 30;
+      ctx.fillStyle = 'rgba(120,20,40,0.95)'; ctx.beginPath();
+      for (let i = 0; i <= 20; i++) { const an = i / 20 * 6.283, rr = e.r * p * (1 + 0.2 * Math.sin(an * 3)); i ? ctx.lineTo(Math.cos(an) * rr, Math.sin(an) * rr) : ctx.moveTo(Math.cos(an) * rr, Math.sin(an) * rr); }
+      ctx.fill(); ctx.strokeStyle = '#ffb84c'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,184,76,0.7)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 18 + 8 * Math.sin(e.a * 4), 0, 6.29); ctx.stroke();
+      ctx.font = '800 13px Inter, sans-serif'; ctx.fillStyle = '#ffb84c'; ctx.textAlign = 'center'; ctx.fillText('EVIDENCE', 0, -e.r - 30);
+      ctx.restore();
+    }
+  }
+}
+function drawShip(x, y, tilt){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(tilt);
+  // engine trail
+  for (let i = 0; i < 6; i++) { ctx.fillStyle = `rgba(61,232,255,${0.25 - i * 0.04})`; ctx.beginPath(); ctx.arc(-30 - i * 12 + Math.random() * 4, (Math.random() - 0.5) * 6, 9 - i, 0, 6.29); ctx.fill(); }
+  ctx.shadowColor = '#3de8ff'; ctx.shadowBlur = 24;
+  ctx.fillStyle = '#0e2a44'; ctx.strokeStyle = '#3de8ff'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(34, 0); ctx.quadraticCurveTo(20, -18, -22, -14); ctx.lineTo(-30, 0); ctx.lineTo(-22, 14); ctx.quadraticCurveTo(20, 18, 34, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-8, -13); ctx.lineTo(-20, -26); ctx.lineTo(-26, -12); ctx.moveTo(-8, 13); ctx.lineTo(-20, 26); ctx.lineTo(-26, 12); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(160,245,255,0.9)'; ctx.beginPath(); ctx.ellipse(12, -3, 10, 6, 0, 0, 6.29); ctx.fill();
+  ctx.restore();
+}
+function drawParts(dt){
+  for (const p of S.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.94; p.vy *= 0.94; p.life -= dt; ctx.fillStyle = rgba(p.col, clamp(p.life / p.max, 0, 1)); ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.29); ctx.fill(); }
+  S.parts = S.parts.filter(p => p.life > 0);
+}
+function drawProgress(){
+  const p = clamp((S.cam + 260) / (forkX() + 140), 0, 1);
+  const x0 = 40, x1 = W - 40, y = 700;
+  ctx.strokeStyle = 'rgba(128,152,188,0.3)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+  ctx.strokeStyle = '#3de8ff'; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + (x1 - x0) * p, y); ctx.stroke();
+}
+
+// ---------------- scan phase ----------------
+let TREE = [];
+function buildTree(){
+  TREE = [];
+  const R = mulberry(5);
+  const br = (x, y, ang, ln, depth, d0) => {
+    if (!depth) return; const x2 = x + Math.cos(ang) * ln, y2 = y + Math.sin(ang) * ln;
+    TREE.push([d0, x, y, x2, y2, depth]); const sp = 0.38 + (R() - 0.4) * 0.2;
+    br(x2, y2, ang - sp, ln * (0.66 + R() * 0.12), depth - 1, d0 + 1); br(x2, y2, ang + sp, ln * (0.66 + R() * 0.12), depth - 1, d0 + 1);
+  };
+  TREE.push([0, 640, 120, 640, 260, 8]);
+  br(640, 260, Math.PI / 2 + 0.75, 105, 6, 1); br(640, 260, Math.PI / 2 - 0.75, 105, 6, 1);
+}
+function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function startScan(){
+  S.phase = 'scan'; S.scanT = 0; $('mentor').classList.add('right'); $('locVal').textContent = 'Lungs (pulmonary arteries)';
+  S.cursor = { x: 640, y: 420 };
+  // patient's right lung is on viewer's left
+  S.zones = [
+    { x: 455, y: 340, n: "Right upper lobe", res: 'Normal blood flow' },
+    { x: 425, y: 480, n: 'Right middle lobe', res: 'Normal blood flow' },
+    { x: 470, y: 600, n: 'Right lower lobe', res: 'NO BLOOD FLOW — clot!', clot: true },
+    { x: 825, y: 340, n: 'Left upper lobe', res: 'Normal blood flow' },
+    { x: 855, y: 470, n: 'Left lower lobe', res: 'Normal blood flow' },
+    { x: 640, y: 175, n: 'Trachea (airway)', res: 'Airway clear — air moving fine', air: true },
+  ].map(z => ({ ...z, p: 0, done: false }));
+  mentor('You made it to the lungs. Move the scanner over each zone and <b>hold Space or click</b> to scan blood flow. Find the problem in as few scans as you can.', 7);
+}
+function updScan(dt){
+  const c = S.cursor;
+  let mx = 0, my = 0;
+  if (keys.ArrowLeft || keys.a || keys.A) mx -= 1; if (keys.ArrowRight || keys.d || keys.D) mx += 1;
+  if (keys.ArrowUp || keys.w || keys.W) my -= 1; if (keys.ArrowDown || keys.s || keys.S) my += 1;
+  if (mx || my) { c.x += mx * 420 * dt; c.y += my * 420 * dt; pointer.active = false; }
+  else if (pointer.active) { c.x = lerp(c.x, pointer.x, 1 - Math.pow(0.0001, dt)); c.y = lerp(c.y, pointer.y, 1 - Math.pow(0.0001, dt)); }
+  c.x = clamp(c.x, 40, W - 40); c.y = clamp(c.y, 120, H - 40);
+  const holding = keys[' '] || pointer.down;
+  let near = null;
+  for (const z of S.zones) if (Math.hypot(z.x - c.x, z.y - c.y) < 55) near = z;
+  S.near = near;
+  if (near && holding && !near.done) {
+    near.p += dt / 1.1; if (Math.random() < dt * 20) sfx.scan();
+    if (near.p >= 1) {
+      near.done = true; S.scans++;
+      if (near.clot) {
+        S.clotFound = true; S.score += 300; sfx.good(); toast('Blockage located', '#ff4064');
+        mentor('There it is: a clot wedged in the artery to the right lower lobe. <b>The airways are fine, but blood can’t get through</b> — so the blood can’t pick up oxygen.', 8);
+        setTimeout(() => { if (S.phase === 'scan') { S.phase = 'dx'; openDx(); } }, 3200);
+      } else if (near.air) { S.score += 20; sfx.pick(); mentor('Airway is clear. So this is probably not asthma or a blocked airway…', 4); }
+      else { S.score = Math.max(0, S.score - 10); sfx.pick(); mentor(near.n + ': blood is flowing normally here. Keep looking.', 3); }
+      updHud();
+    }
+  } else if (near && !near.done && !holding) near.p = Math.max(0, near.p - dt);
+}
+function drawScan(){
+  drawBg();
+  const t = S.t;
+  // lobes
+  for (const [cx, rx] of [[455, 175], [825, 165]]) {
+    ctx.save(); ctx.fillStyle = 'rgba(60,30,90,0.35)'; ctx.strokeStyle = 'rgba(150,115,255,0.4)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(cx, 455, rx, 230, 0, 0, 6.29); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+  // perfusion glows from scanned zones
+  for (const z of S.zones) if (z.done && !z.air) {
+    const g = ctx.createRadialGradient(z.x, z.y, 5, z.x, z.y, 95);
+    if (z.clot) { g.addColorStop(0, 'rgba(10,5,20,0.95)'); g.addColorStop(1, 'rgba(10,5,20,0)'); }
+    else { g.addColorStop(0, 'rgba(90,245,170,0.45)'); g.addColorStop(1, 'rgba(90,245,170,0)'); }
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(z.x, z.y, 95, 0, 6.29); ctx.fill();
+  }
+  // tree
+  const prog = clamp(S.scanT / 1.8, 0, 1) * 9;
+  ctx.save(); ctx.lineCap = 'round'; ctx.shadowBlur = 14;
+  for (const [d0, x1, y1, x2, y2, dep] of TREE) {
+    if (d0 > prog) continue; const f = clamp(prog - d0, 0, 1);
+    const col = d0 < 2 ? '#3de8ff' : d0 < 4 ? '#9673ff' : '#d27cff';
+    ctx.strokeStyle = col; ctx.shadowColor = col; ctx.lineWidth = Math.max(1.5, dep * 1.5);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 + (x2 - x1) * f, y1 + (y2 - y1) * f); ctx.stroke();
+  }
+  ctx.restore();
+  // zones
+  for (const z of S.zones) {
+    ctx.save();
+    const col = z.done ? (z.clot ? '#ff4064' : '#5af5aa') : '#ffb84c';
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(z.done ? [] : [6, 6]); ctx.lineDashOffset = -t * 20;
+    ctx.beginPath(); ctx.arc(z.x, z.y, 42, 0, 6.29); ctx.stroke(); ctx.setLineDash([]);
+    if (z.p > 0 && !z.done) { ctx.strokeStyle = '#3de8ff'; ctx.lineWidth = 6; ctx.shadowColor = '#3de8ff'; ctx.shadowBlur = 16; ctx.beginPath(); ctx.arc(z.x, z.y, 42, -Math.PI / 2, -Math.PI / 2 + z.p * 6.283); ctx.stroke(); }
+    if (z.clot && z.done) {
+      ctx.shadowColor = '#ff4064'; ctx.shadowBlur = 25; ctx.fillStyle = '#ff4064';
+      ctx.beginPath(); ctx.arc(z.x, z.y, 12 + 3 * Math.sin(t * 7), 0, 6.29); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.font = '600 14px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = z.done ? col : '#8098bc';
+    const label = z.done ? z.res : z.n;
+    const ly = z.y + 62;
+    if (z.done) { const w = ctx.measureText(label).width + 20; ctx.fillStyle = 'rgba(5,10,22,0.85)'; roundRect(z.x - w / 2, ly - 16, w, 24, 8); ctx.fill(); ctx.fillStyle = col; }
+    ctx.fillText(label, z.x, ly + 1);
+    ctx.restore();
+  }
+  // cursor
+  const c = S.cursor;
+  ctx.save(); ctx.strokeStyle = S.near ? '#3de8ff' : 'rgba(61,232,255,0.6)'; ctx.lineWidth = 2; ctx.shadowColor = '#3de8ff'; ctx.shadowBlur = 12;
+  const r = 30 + 3 * Math.sin(t * 6);
+  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.beginPath(); ctx.moveTo(c.x + sx * r, c.y + sy * (r - 12)); ctx.lineTo(c.x + sx * r, c.y + sy * r); ctx.lineTo(c.x + sx * (r - 12), c.y + sy * r); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(c.x, c.y, 3, 0, 6.29); ctx.fillStyle = '#3de8ff'; ctx.fill();
+  ctx.restore();
+  ctx.font = '700 15px Inter, sans-serif'; ctx.fillStyle = '#8098bc'; ctx.textAlign = 'right';
+  ctx.fillText('SCANS USED: ' + S.scans, W - 150, 690);
+  ctx.textAlign = 'left'; ctx.fillText('Hold SPACE / click on a zone to scan blood flow', 40, 690);
+}
+
+// ---------------- diagnosis & treatment ----------------
+function clueHtml(){
+  let h = BRIEF_CLUES.map(c => `<span class="clue">${c}</span>`).join('');
+  if (S.evidence) h += '<span class="clue found">Clot found in leg vein (DVT)</span>';
+  h += '<span class="clue found">Airways clear</span>';
+  h += '<span class="clue found">No blood flow: right lower lobe</span>';
+  return h;
+}
+function openDx(){
+  $('dxClues').innerHTML = clueHtml();
+  const opts = [
+    { t: 'Pneumonia', s: 'Lung infection', fb: 'Pneumonia usually brings fever and fluid in the air sacs. Here the airways and tissue looked normal — the problem was <b>blood flow</b>.' },
+    { t: 'Asthma attack', s: 'Narrowed airways', fb: 'The trachea scan showed the airways are clear. Asthma narrows airways; this patient’s problem is in the <b>blood vessels</b>.' },
+    { t: 'Pulmonary embolism', s: 'Clot blocking a lung artery', ok: true },
+    { t: 'Heart attack', s: 'Blocked heart artery', fb: 'A heart attack blocks the heart’s own arteries. You found the blockage in a <b>lung</b> artery, and a clot in the leg vein.' },
+  ];
+  const box = $('dxOpts'); box.innerHTML = '';
+  opts.forEach(o => {
+    const b = document.createElement('button'); b.innerHTML = `${o.t}<small>${o.s}</small>`;
+    b.onclick = () => {
+      if (b.disabled) return;
+      S.dxTries++;
+      if (o.ok) {
+        b.classList.add('right'); sfx.good(); S.score += S.dxTries === 1 ? 300 : 100; updHud();
+        mentor('Spot on. A clot formed in the leg vein (DVT), broke loose, traveled the exact route you flew, and lodged in the lung: <b>pulmonary embolism</b>.', 7);
+        box.querySelectorAll('button').forEach(x => x.disabled = true);
+        setTimeout(openTx, 1600);
+      } else { b.classList.add('wrong'); b.disabled = true; sfx.bad(); S.score = Math.max(0, S.score - 50); updHud(); mentor(o.fb, 7); }
+    };
+    box.appendChild(b);
+  });
+  show('ovDx');
+}
+function openTx(){
+  S.phase = 'tx';
+  const opts = [
+    { t: 'Start a blood thinner', s: 'Anticoagulant (e.g. heparin) to stop the clot growing', ok: true },
+    { t: 'Give antibiotics', s: 'Treat a bacterial infection', fb: 'There’s no sign of infection. Antibiotics won’t touch a clot — the patient’s oxygen keeps falling.' },
+    { t: 'Bronchodilator inhaler', s: 'Open up the airways', fb: 'The airways are already open! The blockage is in the blood vessel, so an inhaler won’t help.' },
+    { t: 'Send home to rest', s: 'Wait and see', fb: 'More bed rest could make things worse — this is an emergency. The patient’s heart rate climbs.' },
+  ];
+  const box = $('txOpts'); box.innerHTML = '';
+  opts.forEach(o => {
+    const b = document.createElement('button'); b.innerHTML = `${o.t}<small>${o.s}</small>`;
+    b.onclick = () => {
+      if (b.disabled) return;
+      S.txTries++;
+      if (o.ok) {
+        b.classList.add('right'); sfx.good(); S.score += S.txTries === 1 ? 300 : 100; updHud();
+        box.querySelectorAll('button').forEach(x => x.disabled = true);
+        mentor('Good call. Blood thinners stop the clot from growing while the body breaks it down. In severe cases, doctors may use stronger clot-dissolving drugs.', 7);
+        S.ending = 'win'; S.endT = 0; setTimeout(() => { hideAll(); }, 1300);
+      } else {
+        b.classList.add('wrong'); b.disabled = true; sfx.bad(); S.score = Math.max(0, S.score - 75);
+        S.hr = Math.min(140, S.hr + 8); S.spo2 = Math.max(82, S.spo2 - 2); updHud(); mentor(o.fb, 6);
+      }
+    };
+    box.appendChild(b);
+  });
+  show('ovTx');
+}
+function finish(win){
+  S.phase = 'end';
+  const time = Math.round((performance.now() - S.start) / 1000);
+  const hullBonus = Math.round(S.hull * 3);
+  if (win) S.score += hullBonus;
+  updHud();
+  let g = 'C';
+  const perfect = S.wrongTurns === 0 && S.dxTries === 1 && S.txTries === 1;
+  if (win) { if (perfect && S.hull >= 60 && S.scans <= 4) g = 'A'; else if (S.wrongTurns <= 1 && S.dxTries <= 2 && S.txTries <= 2) g = 'B'; }
+  else g = '—';
+  $('grade').textContent = g;
+  $('grade').style.color = win ? (g === 'A' ? 'var(--grn)' : g === 'B' ? 'var(--cy)' : 'var(--amb)') : 'var(--red)';
+  $('endKick').textContent = win ? 'Case closed' : 'Mission failed';
+  $('endKick').style.color = win ? 'var(--grn)' : 'var(--red)';
+  $('endTitle').textContent = win ? 'Patient stabilized' : 'Nanoship lost';
+  $('endText').innerHTML = win ? 'Oxygen is climbing back up and the heart rate is settling. Nice work, doctor.' : 'The immune system won this round. Try steering around white blood cells and away from the vessel walls.';
+  const st = [
+    ['Final score', S.score], ['Time', time + ' s'],
+    ['Hull integrity', S.hull + '%' + (win ? `  (+${hullBonus})` : '')], ['Wrong turns', S.wrongTurns],
+    ['Data fragments', S.frags], ['Leg-vein evidence', S.evidence ? 'Found' : 'Missed'],
+    ['Lung scans used', S.scans], ['Diagnosis attempts', S.dxTries || '—'],
+  ];
+  $('stats').innerHTML = st.map(([k, v]) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`).join('');
+  try { const best = +localStorage.getItem('insideMeBest') || 0; if (S.score > best) localStorage.setItem('insideMeBest', S.score); } catch(e){}
+  show('ovEnd');
+}
+function gameOver(){ if (S.phase === 'nav') { S.phase = 'end'; setTimeout(() => finish(false), 700); } }
+
+// ---------------- flow ----------------
+$('btnStart').onclick = () => { audioInit(); reset(); $('briefClues').innerHTML = BRIEF_CLUES.map(c => `<span class="clue">${c}</span>`).join(''); S.phase = 'brief'; show('ovBrief'); };
+$('btnLaunch').onclick = () => {
+  hideAll(); $('hud').style.display = 'flex'; $('mute').style.display = 'block';
+  S.phase = 'shrink'; S.shrinkT = 0; S.start = performance.now();
+};
+$('btnForkGo').onclick = () => {
+  hideAll(); S.leg++; S.forkDone = false; S.cam = 0; S.ents = []; S.evidenceSpawned = S.leg > 0;
+  if (S.leg >= LEGS.length) { S.phase = 'arrive'; S.arriveT = 0; return; }
+  $('locVal').textContent = LEGS[S.leg].name; S.ship.y = 360; S.ship.vy = 0; S.phase = 'nav';
+  toast(LEGS[S.leg].name, '#3de8ff');
+  if (S.leg === 2) mentor('Inside the right heart. <b>The walls squeeze with every heartbeat</b> and the flow is turbulent — hold steady!', 6);
+  if (S.leg === 1) mentor('The vena cava is wide but busy. Grab data fragments for points.', 4);
+};
+$('btnAgain').onclick = () => { $('mentor').classList.remove('right'); reset(); $('hud').style.display = 'none'; $('mentor').classList.remove('show'); show('ovTitle'); };
+
+// ---------------- title backdrop ----------------
+function drawTunnel(t, a = 1){
+  drawBg();
+  const cx = W / 2 + Math.sin(t * 0.7) * 25, cy = H / 2 + Math.cos(t * 0.5) * 15;
+  ctx.save();
+  for (let i = 0; i < 16; i++) {
+    let z = ((i / 16) - t * 0.12) % 1; if (z < 0) z += 1; z = 0.08 + z * 3.2;
+    const r = 420 / z; if (r > 2200) continue;
+    const al = a * clamp((3.2 - z) / 3, 0, 1) * clamp((z - 0.08) / 0.35, 0, 1) * 0.8;
+    ctx.strokeStyle = `rgba(255,70,120,${al})`; ctx.lineWidth = Math.max(1, 9 / z); ctx.shadowColor = 'rgba(255,70,120,0.8)'; ctx.shadowBlur = 18;
+    ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.9, 0, 0, 6.29); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---------------- main loop ----------------
+let last = performance.now();
+buildTree(); reset();
+function frame(now){
+  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+  S.t += dt;
+  if (mentorTimer > 0) { mentorTimer -= dt; if (mentorTimer <= 0) $('mentor').classList.remove('show'); }
+  // heartbeat sound
+  if (['nav', 'scan', 'shrink', 'tx', 'dx'].includes(S.phase) || S.ending) {
+    S.beatT -= dt; if (S.beatT <= 0) { S.beatT = 60 / S.hr; if (S.phase === 'nav' && S.leg === 2) sfx.beat(); else if (S.phase !== 'nav') sfx.beat(); }
+  }
+  ctx.save();
+  if (S.shake > 0) { S.shake -= dt; ctx.translate(rnd(-8, 8) * S.shake * 3, rnd(-8, 8) * S.shake * 3); }
+
+  if (S.phase === 'title' || S.phase === 'brief') {
+    drawTunnel(S.t);
+  } else if (S.phase === 'shrink') {
+    S.shrinkT += dt;
+    const k = clamp(S.shrinkT / 2.2, 0, 1);
+    drawVessel(); drawEnts();
+    ctx.fillStyle = `rgba(4,7,15,${1 - k})`; ctx.fillRect(0, 0, W, H);
+    const sc = lerp(5, 1, 1 - Math.pow(1 - k, 3));
+    ctx.save(); ctx.translate(260, 360); ctx.scale(sc, sc); drawShip(0, 0, 0); ctx.restore();
+    ctx.font = '800 40px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = `rgba(236,246,255,${1 - k})`;
+    ctx.fillText('MINIATURIZING…', W / 2, 140);
+    if (k >= 1) { S.phase = 'nav'; mentor('You’re in a vein in the left leg. Blood is flowing toward the heart — <b>go with the flow</b>. Use ↑ ↓ or your mouse to steer.', 6); }
+  } else if (S.phase === 'nav' || S.phase === 'fork') {
+    if (S.phase === 'nav') updNav(dt);
+    drawVessel(); drawEnts();
+    const sh = S.ship;
+    if (!(sh.inv > 0 && Math.floor(S.t * 20) % 2)) drawShip(260, sh.y, clamp(sh.vy / 1400, -0.35, 0.35));
+    drawParts(dt); drawProgress();
+    if (S.flash > 0) { S.flash -= dt; ctx.fillStyle = `rgba(255,64,100,${S.flash})`; ctx.fillRect(0, 0, W, H); }
+  } else if (S.phase === 'arrive') {
+    S.arriveT += dt;
+    drawTunnel(S.t * 2, 1);
+    ctx.font = '800 44px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#ecf6ff';
+    ctx.fillText('ENTERING THE LUNGS', W / 2, H / 2);
+    ctx.font = '600 20px Inter, sans-serif'; ctx.fillStyle = '#3de8ff'; ctx.fillText('Pulmonary artery → right & left lung', W / 2, H / 2 + 42);
+    if (S.arriveT > 1.8) startScan();
+  } else if (S.phase === 'scan' || S.phase === 'dx' || S.phase === 'tx' || S.phase === 'end') {
+    if (S.phase === 'scan') { S.scanT += dt; updScan(dt); }
+    if (S.zones.length) drawScan(); else drawTunnel(S.t);
+  }
+  // ending vitals animation
+  if (S.ending === 'win') {
+    S.endT += dt;
+    S.hr = lerp(S.hr, 86, dt * 0.9); S.spo2 = lerp(S.spo2, 96, dt * 0.9); updHud();
+    if (S.endT > 0.4 && S.endT < 3.6) {
+      ctx.fillStyle = 'rgba(4,7,15,0.55)'; ctx.fillRect(0, 0, W, H);
+      ctx.font = '800 40px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#5af5aa';
+      ctx.fillText('TREATMENT DELIVERED', W / 2, H / 2 - 10);
+      ctx.font = '600 22px Inter, sans-serif'; ctx.fillStyle = '#ecf6ff';
+      ctx.fillText(`SpO2 ${Math.round(S.spo2)}%   ·   HR ${Math.round(S.hr)}`, W / 2, H / 2 + 34);
+    }
+    if (S.endT > 3.6) { S.ending = null; finish(true); }
+  }
+  ctx.restore();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// tiny test hook
+window.__im = { get S(){ return S; }, vessel, forkX };
+})();
+</script>
+</body>
+</html>
